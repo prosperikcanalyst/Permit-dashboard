@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lee County Permit Intelligence Report</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
+  :root {
+    --navy: #0a1628; --navy2: #0f2040; --steel: #1a3558;
+    --gold: #e8a020; --gold2: #f5c254; --teal: #1db8a0;
+    --red: #e84040; --white: #f0f4f8; --muted: #7a92a8; --card: #0d1f38;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--navy); color: var(--white); font-family: 'DM Sans', sans-serif; min-height: 100vh; }
+
+  header {
+    background: var(--navy2); border-bottom: 3px solid var(--gold);
+    padding: 28px 48px; display: flex; align-items: center; justify-content: space-between;
+  }
+  .header-left h1 { font-family: 'Bebas Neue', sans-serif; font-size: 2.6rem; letter-spacing: 3px; color: var(--white); line-height: 1; }
+  .header-left h1 span { color: var(--gold); }
+  .header-left p { font-size: 0.78rem; color: var(--muted); letter-spacing: 2px; text-transform: uppercase; margin-top: 4px; font-family: 'DM Mono', monospace; }
+  .header-badge { background: var(--gold); color: var(--navy); font-family: 'Bebas Neue', sans-serif; font-size: 1rem; letter-spacing: 2px; padding: 8px 18px; border-radius: 4px; }
+
+  .kpi-strip { display: grid; grid-template-columns: repeat(5, 1fr); gap: 1px; background: var(--steel); border-bottom: 1px solid var(--steel); }
+  .kpi { background: var(--navy2); padding: 20px 24px; position: relative; }
+  .kpi::before { content: ''; position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: var(--gold); }
+  .kpi-value { font-family: 'Bebas Neue', sans-serif; font-size: 2rem; color: var(--gold); letter-spacing: 1px; line-height: 1; }
+  .kpi-label { font-size: 0.68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 2px; margin-top: 6px; font-family: 'DM Mono', monospace; }
+  .kpi-sub { font-size: 0.75rem; color: var(--teal); margin-top: 4px; }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 0; background: var(--navy2); border-bottom: 1px solid var(--steel); padding: 0 48px; }
+  .tab { padding: 14px 24px; font-size: 0.82rem; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; color: var(--muted); border-bottom: 3px solid transparent; transition: all 0.2s; font-family: 'DM Mono', monospace; }
+  .tab:hover { color: var(--white); }
+  .tab.active { color: var(--gold); border-bottom-color: var(--gold); }
+
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  .main { padding: 36px 48px; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .main.three-col { grid-template-columns: 1fr 1fr 1fr; }
+
+  .card { background: var(--card); border: 1px solid var(--steel); border-radius: 8px; padding: 28px; position: relative; overflow: hidden; }
+  .card::after { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, var(--gold), var(--teal)); }
+  .card.full-width { grid-column: 1 / -1; }
+  .card.span2 { grid-column: span 2; }
+  .card h2 { font-family: 'Bebas Neue', sans-serif; font-size: 1.2rem; letter-spacing: 2px; color: var(--white); margin-bottom: 4px; }
+  .card .subtitle { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 20px; font-family: 'DM Mono', monospace; }
+  canvas { max-height: 300px; }
+
+  /* Leaderboard */
+  .leaderboard { display: flex; flex-direction: column; gap: 8px; }
+  .lb-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: var(--navy2); border-radius: 6px; border: 1px solid var(--steel); transition: border-color 0.2s; cursor: pointer; }
+  .lb-row:hover { border-color: var(--gold); }
+  .lb-row.active-row { border-color: var(--gold); background: rgba(232,160,32,0.08); }
+  .lb-rank { font-family: 'Bebas Neue', sans-serif; font-size: 1.2rem; color: var(--muted); width: 24px; text-align: center; }
+  .lb-rank.gold { color: var(--gold); } .lb-rank.silver { color: #b0bec5; } .lb-rank.bronze { color: #cd7f32; }
+  .lb-info { flex: 1; min-width: 0; }
+  .lb-name { font-size: 0.85rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .lb-type-tag { font-size: 0.7rem; color: var(--muted); margin-top: 2px; }
+  .lb-metrics { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
+  .lb-value { font-family: 'DM Mono', monospace; font-size: 0.9rem; color: var(--gold); font-weight: 600; }
+  .lb-count-small { font-size: 0.7rem; color: var(--muted); }
+  .lb-bar-wrap { width: 80px; height: 5px; background: var(--steel); border-radius: 3px; overflow: hidden; }
+  .lb-bar { height: 100%; background: linear-gradient(90deg, var(--gold), var(--teal)); border-radius: 3px; }
+
+  /* Volume vs Value scatter info */
+  .vv-legend { display: flex; gap: 20px; margin-bottom: 12px; font-size: 0.75rem; color: var(--muted); }
+  .vv-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
+
+  .insight-box { background: rgba(232,160,32,0.08); border: 1px solid rgba(232,160,32,0.3); border-radius: 6px; padding: 12px 16px; margin-top: 16px; font-size: 0.8rem; color: var(--gold2); line-height: 1.5; }
+  .insight-box strong { color: var(--gold); }
+
+  /* Breakdown detail panel */
+  .breakdown-panel { background: var(--navy2); border-radius: 6px; padding: 16px; margin-top: 16px; border: 1px solid var(--steel); }
+  .breakdown-title { font-size: 0.78rem; color: var(--gold); font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; font-family: 'DM Mono', monospace; }
+  .breakdown-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--steel); }
+  .breakdown-row:last-child { border: none; }
+  .breakdown-type { flex: 1; font-size: 0.78rem; color: var(--white); }
+  .breakdown-bar-wrap { width: 100px; height: 5px; background: var(--steel); border-radius: 3px; overflow: hidden; }
+  .breakdown-bar { height: 100%; background: var(--teal); border-radius: 3px; }
+  .breakdown-val { font-family: 'DM Mono', monospace; font-size: 0.78rem; color: var(--gold); width: 70px; text-align: right; }
+  .breakdown-cnt { font-size: 0.7rem; color: var(--muted); width: 50px; text-align: right; }
+
+  .days-table { width: 100%; border-collapse: collapse; }
+  .days-table tr { border-bottom: 1px solid var(--steel); }
+  .days-table tr:last-child { border: none; }
+  .days-table td { padding: 9px 4px; font-size: 0.82rem; }
+  .days-table td:first-child { color: var(--muted); }
+  .days-table td:last-child { text-align: right; font-family: 'DM Mono', monospace; color: var(--teal); font-weight: 500; }
+  .speed-bar { display: inline-block; height: 6px; background: var(--teal); border-radius: 3px; vertical-align: middle; margin: 0 8px; opacity: 0.7; }
+  .speed-bar.slow { background: var(--red); }
+
+  footer { text-align: center; padding: 24px; color: var(--muted); font-size: 0.72rem; font-family: 'DM Mono', monospace; letter-spacing: 1px; border-top: 1px solid var(--steel); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <h1>Lee County <span>Permit Intelligence</span></h1>
+    <p>Construction Market Report &mdash; April–May 2026 Sample Dataset</p>
+  </div>
+  <div class="header-badge">Monthly Report</div>
+</header>
+
+<div class="kpi-strip">
+  <div class="kpi"><div class="kpi-value">2,900</div><div class="kpi-label">Total Permits Filed</div><div class="kpi-sub">6-week sample period</div></div>
+  <div class="kpi"><div class="kpi-value">$226M</div><div class="kpi-label">Total Project Value</div><div class="kpi-sub">Across 1,233 valued permits</div></div>
+  <div class="kpi"><div class="kpi-value">184</div><div class="kpi-label">New Homes Filed</div><div class="kpi-sub">Avg value $603K each</div></div>
+  <div class="kpi"><div class="kpi-value">$2.49M</div><div class="kpi-label">Highest Avg Per Permit</div><div class="kpi-sub">MooreCorp Roofing</div></div>
+  <div class="kpi"><div class="kpi-value">10.1</div><div class="kpi-label">Avg Days to Permit</div><div class="kpi-sub">Varies by type (1–24 days)</div></div>
+</div>
+
+<!-- Tabs -->
+<div class="tabs">
+  <div class="tab active" onclick="showTab('market')">Market Overview</div>
+  <div class="tab" onclick="showTab('contractors')">Contractor Value Analysis</div>
+  <div class="tab" onclick="showTab('pipeline')">Project Pipeline</div>
+  <div class="tab" onclick="showTab('speed')">Permit Speed</div>
+</div>
+
+<!-- TAB 1: Market Overview -->
+<div id="tab-market" class="tab-panel active">
+  <div class="main">
+    <div class="card">
+      <h2>Permit Volume by Type</h2>
+      <div class="subtitle">Top 10 categories — where the work is flowing</div>
+      <canvas id="permitTypeChart"></canvas>
+      <div class="insight-box"><strong>Contractor Insight:</strong> Mechanical, Windows/Doors, and Fencing lead by volume. But volume ≠ value — see the Contractor Analysis tab for dollar breakdowns.</div>
+    </div>
+    <div class="card">
+      <h2>Activity by City</h2>
+      <div class="subtitle">Where permits are being pulled</div>
+      <canvas id="cityChart"></canvas>
+      <div class="insight-box"><strong>Contractor Insight:</strong> Fort Myers accounts for 45% of all permits. Lehigh Acres (23%) and North Fort Myers (13%) are strong secondary markets.</div>
+    </div>
+    <div class="card">
+      <h2>Value by Permit Type</h2>
+      <div class="subtitle">Total dollar value — where the real money is</div>
+      <canvas id="jobValueChart"></canvas>
+      <div class="insight-box"><strong>Contractor Insight:</strong> New home construction = $111M pipeline. Roofing = $55M. Volume leaders (mechanical, fencing) don't top the value charts.</div>
+    </div>
+    <div class="card">
+      <h2>Avg Value Per Permit by Type</h2>
+      <div class="subtitle">Which permit types command the highest price</div>
+      <canvas id="avgValueChart"></canvas>
+      <div class="insight-box"><strong>Contractor Insight:</strong> Docks average $318K, new homes $603K. A contractor doing 5 home builds outearns one doing 50 fence permits.</div>
+    </div>
+  </div>
+</div>
+
+<!-- TAB 2: Contractor Value Analysis -->
+<div id="tab-contractors" class="tab-panel">
+  <div class="main" style="grid-template-columns: 1fr 1fr;">
+
+    <div class="card full-width">
+      <h2>Contractor Leaderboard — By Dollar Value</h2>
+      <div class="subtitle">Click any contractor to see their permit type breakdown</div>
+      <div class="leaderboard" id="leaderboard"></div>
+    </div>
+
+    <div class="card">
+      <h2>Permit Type Breakdown</h2>
+      <div class="subtitle" id="breakdown-subtitle">Click a contractor above to see their work breakdown</div>
+      <canvas id="breakdownChart" style="max-height:260px;"></canvas>
+      <div class="breakdown-panel" id="breakdown-detail">
+        <div class="breakdown-title">Select a contractor to view detail</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Volume vs Value</h2>
+      <div class="subtitle">High volume doesn't always mean high value</div>
+      <canvas id="volumeValueChart" style="max-height:260px;"></canvas>
+      <div class="insight-box">
+        <strong>Key Insight:</strong> MooreCorp pulls just 20 permits but generates $49.8M in value — $2.49M per permit. Storm Smart leads in permit count (48) but doesn't appear in the top value rankings. <strong>Volume and value tell very different stories.</strong>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- TAB 3: Project Pipeline -->
+<div id="tab-pipeline" class="tab-panel">
+  <div class="main">
+    <div class="card">
+      <h2>Permit Status Mix</h2>
+      <div class="subtitle">Current pipeline stage breakdown</div>
+      <canvas id="statusChart"></canvas>
+      <div class="insight-box"><strong>Contractor Insight:</strong> ~547 permits are in pre-approval stages (waiting, payment, review) — these are projects likely breaking ground in the next 30–60 days.</div>
+    </div>
+    <div class="card">
+      <h2>Commercial vs Residential</h2>
+      <div class="subtitle">Market segment split</div>
+      <canvas id="comResChart"></canvas>
+      <div class="insight-box"><strong>Contractor Insight:</strong> The market is heavily residential. Material suppliers and subcontractors should orient their inventory and staffing accordingly.</div>
+    </div>
+    <div class="card full-width">
+      <h2>New Home Builders — Volume vs Value</h2>
+      <div class="subtitle">Who is building more homes vs higher-value homes</div>
+      <canvas id="homeBuilderChart" style="max-height:260px;"></canvas>
+      <div class="insight-box"><strong>Contractor Insight:</strong> PulteGroup leads in new home volume (17 permits, $157K avg). Randall Mitchell builds fewer homes but at much higher value ($1.6M for 1 permit). Olympus Designs is strong on both — 13 homes at $215K avg.</div>
+    </div>
+  </div>
+</div>
+
+<!-- TAB 4: Permit Speed -->
+<div id="tab-speed" class="tab-panel">
+  <div class="main">
+    <div class="card span2" style="grid-column: 1 / -1;">
+      <h2>Permit Approval Speed</h2>
+      <div class="subtitle">Average days from application to issuance by permit type</div>
+      <table class="days-table">
+        <tr><td>Permit Revision</td><td><span class="speed-bar" style="width:4px"></span></td><td>1.1 days</td></tr>
+        <tr><td>Mechanical</td><td><span class="speed-bar" style="width:10px"></span></td><td>2.5 days</td></tr>
+        <tr><td>Residential Fire</td><td><span class="speed-bar" style="width:13px"></span></td><td>3.2 days</td></tr>
+        <tr><td>Electrical</td><td><span class="speed-bar" style="width:16px"></span></td><td>3.9 days</td></tr>
+        <tr><td>Roof</td><td><span class="speed-bar" style="width:18px"></span></td><td>4.3 days</td></tr>
+        <tr><td>Windows / Doors</td><td><span class="speed-bar" style="width:37px"></span></td><td>9.0 days</td></tr>
+        <tr><td>Residential Fence</td><td><span class="speed-bar" style="width:43px"></span></td><td>10.4 days</td></tr>
+        <tr><td>Commercial Fire</td><td><span class="speed-bar slow" style="width:53px"></span></td><td>12.9 days</td></tr>
+        <tr><td>Accessory Structure</td><td><span class="speed-bar slow" style="width:90px"></span></td><td>21.8 days</td></tr>
+        <tr><td>New Primary Structure</td><td><span class="speed-bar slow" style="width:97px"></span></td><td>23.6 days</td></tr>
+      </table>
+      <div class="insight-box"><strong>Contractor Insight:</strong> Plan new home builds with a 3–4 week permitting buffer. Mechanical and electrical move fast — schedule those crews first to avoid delays on site.</div>
+    </div>
+  </div>
+</div>
+
+<footer>Lee County, Florida &nbsp;|&nbsp; Data: April 1 – May 15, 2026 &nbsp;|&nbsp; 2,900 permit records &nbsp;|&nbsp; Source: Lee County Community Development &nbsp;|&nbsp; v2 — Value Analysis Update</footer>
+
+<script>
+const gold='#e8a020', teal='#1db8a0', red='#e84040', muted='#7a92a8', navy2='#0f2040', steel='#1a3558', white='#f0f4f8';
+const COLORS=[gold,teal,'#2980b9','#8e44ad',red,'#27ae60','#f39c12','#16a085','#c0392b','#d35400'];
+
+const tt = {
+  backgroundColor: navy2, titleColor: gold, bodyColor: white,
+  borderColor: steel, borderWidth: 1, padding: 12
+};
+
+// ── TAB SWITCHING ──
+function showTab(name) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  event.target.classList.add('active');
+}
+
+// ── CHART 1: Permit Volume ──
+new Chart(document.getElementById('permitTypeChart'), {
+  type: 'bar',
+  data: {
+    labels: ['Mechanical','Windows/Doors','Res. Fence','Electrical','Permit Revision','Accessory Struct.','Roof','New Home','Res. Fire','Com. Fire'],
+    datasets: [{ data: [376,308,266,239,236,225,209,184,85,80],
+      backgroundColor: (ctx) => ctx.dataIndex===0?gold:ctx.dataIndex<3?teal:steel,
+      borderRadius: 4, borderSkipped: false }]
+  },
+  options: {
+    indexAxis:'y', plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>` ${c.parsed.x} permits`},...tt}},
+    scales:{x:{ticks:{color:muted},grid:{color:'rgba(26,53,88,0.5)'}},y:{ticks:{color:white,font:{size:11}},grid:{display:false}}}
+  }
+});
+
+// ── CHART 2: City Donut ──
+new Chart(document.getElementById('cityChart'), {
+  type: 'doughnut',
+  data: {
+    labels: ['Fort Myers','Lehigh Acres','N. Fort Myers','Estero','Alva','St. James City','Ft Myers Beach'],
+    datasets: [{ data: [1005,656,356,119,87,64,59],
+      backgroundColor: COLORS, borderWidth: 2, borderColor: '#0d1f38', hoverOffset: 8 }]
+  },
+  options: { plugins: { legend: { display:true, position:'right', labels:{color:white,font:{size:11},padding:10,boxWidth:12} }, tooltip:{...tt} } }
+});
+
+// ── CHART 3: Total Value by Type ──
+new Chart(document.getElementById('jobValueChart'), {
+  type: 'bar',
+  data: {
+    labels: ['New Home','Roof','Dock','Com. New Bldg','Com. Accessory','Res. Alteration','Deferred Sub.','Res. Pool'],
+    datasets: [{ label:'Total Value ($M)', data:[111.0,55.5,12.4,9.3,7.2,5.7,5.3,4.8],
+      backgroundColor: COLORS, borderRadius:4, borderSkipped:false }]
+  },
+  options: {
+    plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>` $${c.parsed.y}M`},...tt}},
+    scales:{x:{ticks:{color:muted,font:{size:10}},grid:{color:'rgba(26,53,88,0.5)'}},y:{ticks:{color:muted,callback:v=>`$${v}M`},grid:{color:'rgba(26,53,88,0.5)'}}}
+  }
+});
+
+// ── CHART 4: Avg Value Per Permit ──
+new Chart(document.getElementById('avgValueChart'), {
+  type: 'bar',
+  data: {
+    labels: ['New Home','Deferred Sub.','Dock','Com. New Bldg','Roof','Com. Accessory','Res. Addition','Com. Alteration','Res. Alteration','Res. Pool'],
+    datasets: [{ label:'Avg Value', data:[603254,751429,317892,581264,265528,267833,240000,68283,72802,65433],
+      backgroundColor: COLORS, borderRadius:4, borderSkipped:false }]
+  },
+  options: {
+    indexAxis:'y',
+    plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>` $${c.parsed.x.toLocaleString()}`},...tt}},
+    scales:{x:{ticks:{color:muted,callback:v=>`$${(v/1000).toFixed(0)}K`},grid:{color:'rgba(26,53,88,0.5)'}},y:{ticks:{color:white,font:{size:10}},grid:{display:false}}}
+  }
+});
+
+// ── CONTRACTOR DATA ──
+const contractorData = [
+  { name:'MooreCorp Roofing Inc', value:49846640, count:20, avgPer:2492332,
+    types:[{t:'Roof',v:49846640,c:20}] },
+  { name:'Poole & Kent Company', value:10250000, count:6, avgPer:1708333,
+    types:[{t:'Com. Accessory',v:5750000,c:5},{t:'Com. New Building',v:4500000,c:1}] },
+  { name:'Kelly Brothers Inc.', value:10001281, count:1, avgPer:10001281,
+    types:[{t:'Dock',v:10001281,c:1}] },
+  { name:'OLYMPUS DESIGNS GROUP', value:2850000, count:15, avgPer:190000,
+    types:[{t:'New Home',v:2800000,c:13},{t:'Res. Pool',v:50000,c:2}] },
+  { name:'PulteGroup', value:2676475, count:17, avgPer:157439,
+    types:[{t:'New Home',v:2676475,c:17}] },
+  { name:'LENNAR HOMES, LLC', value:1920000, count:2, avgPer:960000,
+    types:[{t:'Com. New Building',v:1920000,c:2}] },
+  { name:'Randall Mitchell Custom Homes', value:1600000, count:1, avgPer:1600000,
+    types:[{t:'New Home',v:1600000,c:1}] },
+  { name:'Kelly General Contracting', value:1470500, count:2, avgPer:735250,
+    types:[{t:'Res. Accessory',v:1020500,c:1},{t:'Res. Addition',v:450000,c:1}] },
+  { name:'COASTAL SIGNATURE HOMES', value:1439537, count:3, avgPer:479846,
+    types:[{t:'Res. Alteration',v:900542,c:2},{t:'Res. Addition',v:538995,c:1}] },
+  { name:'Brooks & Freund, LLC', value:1297430, count:11, avgPer:117948,
+    types:[{t:'New Home',v:1297430,c:11}] },
+];
+
+const maxVal = contractorData[0].value;
+const rankClasses = ['gold','silver','bronze'];
+const lb = document.getElementById('leaderboard');
+
+lb.innerHTML = contractorData.map((c,i)=>`
+  <div class="lb-row" onclick="showBreakdown(${i})" id="lb-${i}">
+    <div class="lb-rank ${rankClasses[i]||''}">${i+1}</div>
+    <div class="lb-info">
+      <div class="lb-name">${c.name}</div>
+      <div class="lb-type-tag">${c.types.map(t=>t.t).join(' · ')} &nbsp;·&nbsp; ${c.count} permit${c.count>1?'s':''}</div>
+    </div>
+    <div class="lb-bar-wrap"><div class="lb-bar" style="width:${(c.value/maxVal*100).toFixed(0)}%"></div></div>
+    <div class="lb-metrics">
+      <div class="lb-value">$${(c.value/1e6).toFixed(1)}M</div>
+      <div class="lb-count-small">$${(c.avgPer/1000).toFixed(0)}K avg/permit</div>
+    </div>
+  </div>
+`).join('');
+
+// Breakdown chart
+let breakdownChart = null;
+function showBreakdown(idx) {
+  document.querySelectorAll('.lb-row').forEach(r=>r.classList.remove('active-row'));
+  document.getElementById('lb-'+idx).classList.add('active-row');
+  const c = contractorData[idx];
+  document.getElementById('breakdown-subtitle').textContent = c.name + ' — permit type breakdown';
+
+  if (breakdownChart) breakdownChart.destroy();
+  breakdownChart = new Chart(document.getElementById('breakdownChart'), {
+    type:'doughnut',
+    data:{
+      labels: c.types.map(t=>t.t),
+      datasets:[{ data: c.types.map(t=>t.v),
+        backgroundColor: COLORS, borderWidth:2, borderColor:'#0d1f38', hoverOffset:6 }]
+    },
+    options:{ plugins:{ legend:{display:true,position:'bottom',labels:{color:white,font:{size:10},padding:8,boxWidth:10}},
+      tooltip:{callbacks:{label:ctx=>` $${(ctx.parsed/1e6).toFixed(2)}M`},...tt} } }
+  });
+
+  const maxTypeVal = Math.max(...c.types.map(t=>t.v));
+  document.getElementById('breakdown-detail').innerHTML = `
+    <div class="breakdown-title">${c.name} — Value by Work Type</div>
+    ${c.types.map(t=>`
+      <div class="breakdown-row">
+        <div class="breakdown-type">${t.t}</div>
+        <div class="breakdown-bar-wrap"><div class="breakdown-bar" style="width:${(t.v/maxTypeVal*100).toFixed(0)}%"></div></div>
+        <div class="breakdown-val">$${(t.v/1e6).toFixed(2)}M</div>
+        <div class="breakdown-cnt">${t.c} permit${t.c>1?'s':''}</div>
+      </div>`).join('')}
+  `;
+}
+// Auto-show first
+showBreakdown(0);
+
+// ── Volume vs Value Chart ──
+new Chart(document.getElementById('volumeValueChart'), {
+  type:'bar',
+  data:{
+    labels: contractorData.map(c=>c.name.split(' ').slice(0,2).join(' ')),
+    datasets:[
+      { label:'Permit Count', data: contractorData.map(c=>c.count),
+        backgroundColor: teal+'99', borderRadius:4, yAxisID:'y' },
+      { label:'Total Value ($M)', data: contractorData.map(c=>+(c.value/1e6).toFixed(1)),
+        backgroundColor: gold+'cc', borderRadius:4, yAxisID:'y1' }
+    ]
+  },
+  options:{
+    plugins:{legend:{display:true,labels:{color:white,font:{size:10},boxWidth:12}},tooltip:{...tt}},
+    scales:{
+      x:{ticks:{color:muted,font:{size:9}},grid:{display:false}},
+      y:{ticks:{color:teal},grid:{color:'rgba(26,53,88,0.3)'},title:{display:true,text:'Permit Count',color:teal,font:{size:10}}},
+      y1:{position:'right',ticks:{color:gold,callback:v=>`$${v}M`},grid:{display:false},title:{display:true,text:'Value ($M)',color:gold,font:{size:10}}}
+    }
+  }
+});
+
+// ── Status Chart ──
+new Chart(document.getElementById('statusChart'), {
+  type:'doughnut',
+  data:{
+    labels:['Permit Issued','Closed-CC Issued','Waiting on Applicant','Payment Required','In Review','Other'],
+    datasets:[{data:[1186,735,211,128,83,557],backgroundColor:COLORS,borderWidth:2,borderColor:'#0d1f38',hoverOffset:8}]
+  },
+  options:{plugins:{legend:{display:true,position:'right',labels:{color:white,font:{size:11},padding:10,boxWidth:12}},tooltip:{...tt}}}
+});
+
+// ── Com vs Res ──
+new Chart(document.getElementById('comResChart'), {
+  type:'doughnut',
+  data:{
+    labels:['Residential','Commercial','N/A'],
+    datasets:[{data:[2240,480,180],backgroundColor:[gold,teal,steel],borderWidth:2,borderColor:'#0d1f38',hoverOffset:8}]
+  },
+  options:{plugins:{legend:{display:true,position:'right',labels:{color:white,font:{size:11},padding:10,boxWidth:12}},tooltip:{...tt}}}
+});
+
+// ── Home Builder Chart ──
+new Chart(document.getElementById('homeBuilderChart'), {
+  type:'bar',
+  data:{
+    labels:['PulteGroup','OLYMPUS DESIGNS','Brooks & Freund','Randall Mitchell','LENNAR HOMES'],
+    datasets:[
+      { label:'# of New Homes', data:[17,13,11,1,0], backgroundColor:teal+'cc', borderRadius:4, yAxisID:'y' },
+      { label:'Avg Value per Home ($K)', data:[157,215,118,1600,960], backgroundColor:gold+'cc', borderRadius:4, yAxisID:'y1' }
+    ]
+  },
+  options:{
+    plugins:{legend:{display:true,labels:{color:white,font:{size:10},boxWidth:12}},tooltip:{...tt}},
+    scales:{
+      x:{ticks:{color:white,font:{size:11}},grid:{display:false}},
+      y:{ticks:{color:teal},grid:{color:'rgba(26,53,88,0.3)'},title:{display:true,text:'# of Homes',color:teal,font:{size:10}}},
+      y1:{position:'right',ticks:{color:gold,callback:v=>`$${v}K`},grid:{display:false},title:{display:true,text:'Avg Value ($K)',color:gold,font:{size:10}}}
+    }
+  }
+});
+</script>
+</body>
+</html>
